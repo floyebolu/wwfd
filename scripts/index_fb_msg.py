@@ -2,6 +2,7 @@ import os
 import json
 import datetime
 import pandas as pd
+import shutil
 
 
 def read_json(folder_path, file_name='message_', file_extension='json', msg_index=[1]):
@@ -35,3 +36,21 @@ def index_msgs(msgs):
     index_df = pd.DataFrame(index, columns=['Date', 'MsgIndex'])
     return index_df
 
+
+def copy_msgs(src, dst):
+    src = os.path.realpath(src)
+    dst = os.path.realpath(dst)
+    os.makedirs(dst, exist_ok=True)
+    orig = []
+    dest = []
+    for pf in os.scandir(src):
+        if not pf.is_dir() or pf.name.startswith('facebookuser'):
+            continue
+        for mfile in os.scandir(pf.path):
+            if not mfile.is_dir() and mfile.name.startswith('message'):
+                orig.append(mfile.path)
+                dest.append(os.path.join(dst, pf.name, mfile.name))
+
+    for (f1, f2) in zip(orig, dest):
+        os.makedirs(os.path.dirname(f2), exist_ok=True)
+        shutil.copy2(f1, f2)
