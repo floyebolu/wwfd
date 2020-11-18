@@ -17,7 +17,7 @@ def read_json(folder_path, file_name='message_', file_extension='json', msg_inde
 
 
 def convert_ms_to_date(ms):
-    date_obj = datetime.datetime.fromtimestamp(ms/1000)
+    date_obj = datetime.datetime.fromtimestamp(ms / 1000)
     return date_obj.date()
 
 
@@ -54,3 +54,52 @@ def copy_msgs(src, dst):
     for (f1, f2) in zip(orig, dest):
         os.makedirs(os.path.dirname(f2), exist_ok=True)
         shutil.copy2(f1, f2)
+
+
+def create_indices_for_all(data_path='../../.data'):
+    # Get all person/message folders.
+    data_path = os.path.realpath(data_path)
+    # Then for each:
+    for pf in os.scandir(data_path):
+        if not pf.is_dir():
+            continue
+        n = len([mf for mf in os.scandir(pf.path) if mf.name.startswith('message')])
+        # Use read_json to read in the message files
+        jmsg = read_json(pf.name, 'message_', 'json', list(range(1, n+1)))
+        # Use index_msgs to index the messages by date
+        index = index_msgs(jmsg)
+        # Use return from index_msgs and save to csv file in person/message folder
+        index.to_csv(os.path.join(pf.path, 'date_index.dat'), sep='\t')
+
+
+def create_master_index(data_path, myself='Folarin Oyebolu'):
+    # get all person/message folders
+    data_path = os.path.realpath(data_path)
+    # big_index = pd.DataFrame(columns=['Date', 'Interaction', 'People'])
+    start_date = datetime.date(2008, 1, 1)
+    end_date = datetime.date(2037, 12, 31)
+    # day = datetime.timedelta(days=1)
+    # n = (end_date - start_date).days + 1
+    d = pd.date_range(start_date, end_date, freq='D')
+    # big_index = {start_date + day * i: [False] for i in range(n)}
+    # big_index = pd.DataFrame.from_dict(big_index, orient='index', columns=['interaction'])
+    big_index = pd.DataFrame([False] * len(d), index=d, columns=['interaction'])
+    bic = big_index
+    for i, pf in enumerate(os.scandir(data_path)):
+        if not pf.is_dir():
+            continue
+        # Extract participants from message_1.json and remove myself from list
+        jmsg = read_json(pf.name)
+        all_participants = jmsg['participants']
+        contacts = [c['name'] for c in all_participants if c['name'] != myself]
+        # read in index and iterate through, for every date in index, append participants to grouped participants col
+        index = pd.read_table(os.path.join(pf.path, 'date_index.dat'))
+        index['Date'] = pd.to_datetime(index['Date'])
+        index = index.set_index('Date')
+        index['interaction'] = True
+        index['contacts'] = [[contacts] * index.shape[0]][0]
+        bic = bic.join(index, rsuffix=str(i))
+
+    # create data frame with cols: date; interaction (true/false); grouped participants
+    # in corresponding row
+    pass
