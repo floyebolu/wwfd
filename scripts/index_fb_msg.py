@@ -72,34 +72,37 @@ def create_indices_for_all(data_path='../../.data'):
         index.to_csv(os.path.join(pf.path, 'date_index.dat'), sep='\t')
 
 
-def create_master_index(data_path, myself='Folarin Oyebolu'):
+def create_master_index(data_path='../../.data', myself='Folarin Oyebolu'):
     # get all person/message folders
     data_path = os.path.realpath(data_path)
-    # big_index = pd.DataFrame(columns=['Date', 'Interaction', 'People'])
     start_date = datetime.date(2008, 1, 1)
     end_date = datetime.date(2037, 12, 31)
-    # day = datetime.timedelta(days=1)
-    # n = (end_date - start_date).days + 1
     d = pd.date_range(start_date, end_date, freq='D')
-    # big_index = {start_date + day * i: [False] for i in range(n)}
-    # big_index = pd.DataFrame.from_dict(big_index, orient='index', columns=['interaction'])
-    big_index = pd.DataFrame([False] * len(d), index=d, columns=['interaction'])
+    big_index = pd.DataFrame([[False, []]] * len(d), index=d, columns=['interaction', 'contacts'])
     bic = big_index
+    contacts_col = []
+    interaction_col = []
     for i, pf in enumerate(os.scandir(data_path)):
         if not pf.is_dir():
             continue
         # Extract participants from message_1.json and remove myself from list
-        jmsg = read_json(pf.name)
+        jmsg = next(read_json(pf.name))
         all_participants = jmsg['participants']
         contacts = [c['name'] for c in all_participants if c['name'] != myself]
-        # read in index and iterate through, for every date in index, append participants to grouped participants col
-        index = pd.read_table(os.path.join(pf.path, 'date_index.dat'))
+        # read in index df
+        index = pd.read_table(os.path.join(pf.path, 'date_index.dat'), index_col=0)
+        # set dates as row labels, create interaction and contact columns
         index['Date'] = pd.to_datetime(index['Date'])
         index = index.set_index('Date')
         index['interaction'] = True
         index['contacts'] = [[contacts] * index.shape[0]][0]
+        # join index df to bic df
         bic = bic.join(index, rsuffix=str(i))
-
-    # create data frame with cols: date; interaction (true/false); grouped participants
-    # in corresponding row
-    pass
+        contacts_col.append(f'contacts{i}')
+        interaction_col.append(f'interaction{i}')
+    # tidy up the master index df
+    interactions = bic.loc[:, interaction_col].any(axis='columns')
+    bic['interaction'] = interactions
+    bic = bic.rename(columns={'MsgIndex': 'MsgIndex0'})
+    bic = bic.drop(columns=['contacts'])
+    return bic
